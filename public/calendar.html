@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Going home · Hostel Hub</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>When are you going home?</h1>
+    <p>Tap a day to choose when you leave, then when you return.</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <div class="month-nav">
+        <button id="prev" class="nav">‹</button>
+        <h2 id="month-title">Month</h2>
+        <button id="next" class="nav">›</button>
+      </div>
+
+      <div class="weekdays">
+        <div>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div>
+      </div>
+      <div id="grid" class="calendar"></div>
+      <p>🏠 leaving · 🎒 returning</p>
+    </section>
+
+    <section class="card">
+      <label for="leave">Leaving 🏠</label>
+      <input id="leave" type="date">
+
+      <label for="back">Returning 🎒</label>
+      <input id="back" type="date">
+
+      <button id="save-btn">Save dates</button>
+      <p id="status"></p>
+    </section>
+    <section class="card">
+      <h2>Saved trips</h2>
+      <ul id="trip-list" class="trip-list"></ul>
+    </section> 
+
+  </main>
+
+  <footer>
+    <p><a href="index.html">Back to join page</a></p>
+  </footer>
+
+  <script src="calendar.js"></script>
+</body>
+</html>
