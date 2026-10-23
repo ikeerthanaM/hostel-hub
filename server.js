@@ -1,190 +1,26 @@
 const express = require("express");
 const path = require("path");
+const crypto = require("crypto");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Let the server read JSON sent from the browser
 app.use(express.json());
-
-// Serve everything in the public folder (index.html, style.css, app.js)
 app.use(express.static(path.join(__dirname, "public")));
-
-// Temporary storage: lives in memory and is lost when the server stops.
-// The database layer will replace this.
-const joinRequests = [];
-
-app.post("/join", (req, res) => {
-  const { invite, username, pin } = req.body;
-
-  if (!invite || !username || !pin) {
-    return res.status(400).json({ error: "Please fill in all three boxes" });
-  }
-
-  if (!/^[0-9]{4,6}$/.test(pin)) {
-    return res.status(400).json({ error: "PIN must be 4 to 6 digits" });
-  }
-
-  // The PIN is checked but not saved yet. It will be scrambled (hashed) before storage in Phase 1.
-  joinRequests.push({ invite, username, status: "pending" });
-  console.log("New join request:", username);
-
-  res.json({ message: "Request received. Waiting for the proctor to approve." });
-});
-
-// Snack poll: the server keeps the count, not the phone
-const snackPoll = { question: "Banana tomorrow?", yes: 0, no: 0 };
-
-app.get("/polls/snack", (req, res) => {
-  res.json(snackPoll);
-});
-
-app.post("/polls/snack/vote", (req, res) => {
-  const { choice } = req.body;
-
-  if (choice !== "yes" && choice !== "no") {
-    return res.status(400).json({ error: "Choose yes or no" });
-  }
-
-  snackPoll[choice] += 1;
-  res.json(snackPoll);
-});
-
-// ---------- Chat and complaints: names come from the logged-in account, never shown ----------
-const crypto = require("crypto");
-
-// Set a long random value as NAME_SECRET on Render. Locally, the fallback is used.
-const NAME_SECRET = process.env.NAME_SECRET || "local-test-secret";
-
-const adjectives = ["Calm", "Brave", "Quiet", "Gentle", "Bright", "Swift", "Kind", "Wise", "Lucky", "Proud",
-  "Happy", "Shy", "Witty", "Bold", "Sunny", "Misty", "Clever", "Mellow", "Steady", "Jolly"];
-const animals = ["Panda", "Otter", "Heron", "Fox", "Owl", "Tiger", "Koala", "Hawk", "Deer", "Whale",
-  "Lynx", "Rabbit", "Badger", "Falcon", "Dolphin", "Penguin", "Camel", "Gecko", "Moose", "Wolf"];
-const categories = ["Food", "Clothes", "Washrooms", "Rules", "Other"];
 
 // Today's date in Indian time, like 2026-10-23
 function todayIST() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 }
 
-// Same account and same day = same name. Different accounts get different names.
-function nameFor(username, day) {
-  const digest = crypto.createHmac("sha256", NAME_SECRET).update(username + "|" + day).digest();
-  return adjectives[digest[0] % adjectives.length] + " " + animals[digest[1] % animals.length];
-}
+// ---------- Hostel location (set on Render, or the fallback here) ----------
+const HOSTEL = {
+  lat: Number(process.env.HOSTEL_LAT) || 12.9716,
+  lng: Number(process.env.HOSTEL_LNG) || 77.5946,
+  radiusM: Number(process.env.HOSTEL_RADIUS_M) || 150
+};
 
-// ----- Complaints -----
-const posts = []; // { username, category, body, tagProctor }
-
-app.get("/posts", requireUser, (req, res) => {
-  const day = todayIST();
-  res.json(posts.map(p => ({
-    name: nameFor(p.username, day),
-    category: p.category,
-    body: p.body,
-    tagProctor: p.tagProctor,
-    mine: p.username === req.user.username
-  })));
-});
-
-app.post("/post", requireUser, (req, res) => {
-  const { category, body, tagProctor } = req.body;
-  const text = typeof body === "string" ? body.trim() : "";
-
-  if (text === "") return res.status(400).json({ error: "Write something first" });
-  if (text.length > 300) return res.status(400).json({ error: "Keep it under 300 characters" });
-  if (!categories.includes(category)) return res.status(400).json({ error: "Choose a category" });
-
-  posts.push({ username: req.user.username, category, body: text, tagProctor: tagProctor === true });
-  res.json({ message: "Posted anonymously" });
-});
-
-// ----- Chat -----
-const messages = []; // { id, username, body }
-let nextMessageId = 1;
-const lastSentAt = {}; // username -> time of last message
-
-app.get("/messages", requireUser, (req, res) => {
-  const after = Number(req.query.after) || 0;
-  const day = todayIST();
-
-  res.json(messages
-    .filter(m => m.id > after)
-    .slice(-100)
-    .map(m => ({
-      id: m.id,
-      name: nameFor(m.username, day),
-      body: m.body,
-      mine: m.username === req.user.username
-    })));
-});
-
-app.post("/message", requireUser, (req, res) => {
-  const username = req.user.username;
-  const text = typeof req.body.body === "string" ? req.body.body.trim() : "";
-
-  if (text === "") return res.status(400).json({ error: "Write a message first" });
-  if (text.length > 500) return res.status(400).json({ error: "Keep messages under 500 characters" });
-
-  const now = Date.now();
-  if (lastSentAt[username] && now - lastSentAt[username] < 1000) {
-    return res.status(429).json({ error: "Slow down a little" });
-  }
-  lastSentAt[username] = now;
-
-  messages.push({ id: nextMessageId++, username, body: text });
-  res.json({ message: "Sent" });
-});
-
-
-
-
-
-
-// Same browser + same day = same name. A new day gives a new name.
-
-
-// ---------- Accounts: the real name is stored here and never shown in the app ----------
-// `crypto` is already loaded in the anonymous-names section above.
-
-const VALID_INVITES = ["HUB-4F7K"]; // later this becomes a database table, as in your deck
-const AUTO_APPROVE = true;          // set to false once the proctor panel can approve students
-const PROCTORS = ["proctor"];       // usernames allowed to download the spreadsheets
-
-const users = [];    // { username, realName, salt, pinHash, status }
-const sessions = {}; // session token -> username
-
-const HOSTEL = { lat: 12.974444, lng: 77.586568, radiusM: 150 };
-const dailyAttendance = []; // { username, date }
-const movements = [];       // { username, kind: "out" | "in", at }
-
-function hashPin(pin, salt) {
-  return crypto.scryptSync(pin, salt, 32).toString("hex");
-}
-
-function getCookie(req, name) {
-  const pair = (req.headers.cookie || "")
-    .split(";")
-    .map(s => s.trim())
-    .find(s => s.startsWith(name + "="));
-  return pair ? decodeURIComponent(pair.slice(name.length + 1)) : null;
-}
-
-// The logged-in account, or null
-function currentUser(req) {
-  const token = getCookie(req, "hub_session");
-  const username = token && sessions[token];
-  return users.find(u => u.username === username && u.status === "active") || null;
-}
-
-function requireUser(req, res, next) {
-  const user = currentUser(req);
-  if (!user) return res.status(401).json({ error: "Please log in first" });
-  req.user = user;
-  next();
-}
-
-// Distance in metres between two points on Earth (the haversine formula)
+// Distance in metres between two points (haversine formula)
 function distanceMetres(lat1, lng1, lat2, lng2) {
   const R = 6371000;
   const toRad = d => (d * Math.PI) / 180;
@@ -210,7 +46,44 @@ function checkZone(lat, lng, accuracy) {
   return null;
 }
 
-// ----- Register: the real name is typed once, here -----
+// ---------- Accounts ----------
+const VALID_INVITES = ["HUB-4F7K"];
+const AUTO_APPROVE = true;
+const PROCTORS = ["proctor"];
+
+const users = [];    // { username, realName, salt, pinHash, status }
+const sessions = {}; // session token -> username
+
+function hashPin(pin, salt) {
+  return crypto.scryptSync(pin, salt, 32).toString("hex");
+}
+
+function getCookie(req, name) {
+  const pair = (req.headers.cookie || "")
+    .split(";")
+    .map(s => s.trim())
+    .find(s => s.startsWith(name + "="));
+  return pair ? decodeURIComponent(pair.slice(name.length + 1)) : null;
+}
+
+function currentUser(req) {
+  const token = getCookie(req, "hub_session");
+  const username = token && sessions[token];
+  return users.find(u => u.username === username && u.status === "active") || null;
+}
+
+function requireUser(req, res, next) {
+  const user = currentUser(req);
+  if (!user) return res.status(401).json({ error: "Please log in first" });
+  req.user = user;
+  next();
+}
+
+function isProctor(req) {
+  const user = currentUser(req);
+  return Boolean(user && PROCTORS.includes(user.username));
+}
+
 app.post("/register", (req, res) => {
   const invite = String(req.body.invite || "").trim().toUpperCase();
   const username = String(req.body.username || "").trim();
@@ -249,7 +122,6 @@ app.post("/register", (req, res) => {
   });
 });
 
-// ----- Login and logout -----
 app.post("/login", (req, res) => {
   const username = String(req.body.username || "").trim().toLowerCase();
   const pin = String(req.body.pin || "").trim();
@@ -279,14 +151,15 @@ app.post("/logout", (req, res) => {
   res.json({ message: "Logged out" });
 });
 
-// Only the username and avatar info. The real name is never sent to the browser.
 app.get("/me", (req, res) => {
   const user = currentUser(req);
   if (!user) return res.status(401).json({ error: "Not logged in" });
   res.json({ username: user.username });
 });
 
-// ----- Daily attendance: one mark per student per day, date only -----
+// ---------- Daily attendance: one mark per student per day, date only ----------
+const dailyAttendance = []; // { username, date }
+
 app.get("/attendance/today", requireUser, (req, res) => {
   const date = todayIST();
   res.json({
@@ -308,7 +181,9 @@ app.post("/attendance/mark", requireUser, (req, res) => {
   res.json({ message: "Attendance marked" });
 });
 
-// ----- Going out and coming back: every movement, with the exact time -----
+// ---------- Going out and coming back: every movement, with the exact time ----------
+const movements = []; // { username, kind: "out" | "in", at }
+
 app.get("/movements", requireUser, (req, res) => {
   const mine = movements.filter(m => m.username === req.user.username);
   const last = mine[mine.length - 1];
@@ -332,20 +207,15 @@ app.post("/movement", requireUser, (req, res) => {
   }
 
   const kind = last && last.kind === "out" ? "in" : "out";
-  movements.push({ username: req.user.username, kind, at: now }); // the server's clock
+  movements.push({ username: req.user.username, kind, at: now });
 
   res.json({ message: kind === "out" ? "Checked out" : "Checked in" });
 });
 
-// ----- Spreadsheets for proctors (real names included) -----
+// ---------- Spreadsheets for proctors (real names included) ----------
 function csvCell(value) {
   const s = String(value);
   return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-}
-
-function isProctor(req) {
-  const user = currentUser(req);
-  return Boolean(user && PROCTORS.includes(user.username));
 }
 
 app.get("/export/attendance.csv", (req, res) => {
@@ -376,16 +246,127 @@ app.get("/export/movements.csv", (req, res) => {
   res.setHeader("Content-Disposition", 'attachment; filename="movements.csv"');
   res.send(lines.join("\n"));
 });
-// -
-//fuck
-// ---------- Food polls: one Meals, one Snack, one Veg/Non-veg per date ----------
-const foodPolls = []; // { id, type, title, options, multi, forDate, closesAt, votes }
+
+// ---------- Chat and complaints: names come from the account, never shown ----------
+// Set NAME_SECRET on Render to a long random value. The fallback is for local tests only.
+const NAME_SECRET = process.env.NAME_SECRET || "local-test-secret";
+
+const adjectives = ["Calm", "Brave", "Quiet", "Gentle", "Bright", "Swift", "Kind", "Wise", "Lucky", "Proud",
+  "Happy", "Shy", "Witty", "Bold", "Sunny", "Misty", "Clever", "Mellow", "Steady", "Jolly"];
+const animals = ["Panda", "Otter", "Heron", "Fox", "Owl", "Tiger", "Koala", "Hawk", "Deer", "Whale",
+  "Lynx", "Rabbit", "Badger", "Falcon", "Dolphin", "Penguin", "Camel", "Gecko", "Moose", "Wolf"];
+const categories = ["Food", "Clothes", "Washrooms", "Rules", "Other"];
+
+// Same account and same day = same name. Different accounts get different names.
+function nameFor(username, day) {
+  const digest = crypto.createHmac("sha256", NAME_SECRET).update(username + "|" + day).digest();
+  return adjectives[digest[0] % adjectives.length] + " " + animals[digest[1] % animals.length];
+}
+
+const posts = []; // { username, category, body, tagProctor }
+
+app.get("/posts", requireUser, (req, res) => {
+  const day = todayIST();
+  res.json(posts.map(p => ({
+    name: nameFor(p.username, day),
+    category: p.category,
+    body: p.body,
+    tagProctor: p.tagProctor,
+    mine: p.username === req.user.username
+  })));
+});
+
+app.post("/post", requireUser, (req, res) => {
+  const { category, body, tagProctor } = req.body;
+  const text = typeof body === "string" ? body.trim() : "";
+
+  if (text === "") return res.status(400).json({ error: "Write something first" });
+  if (text.length > 300) return res.status(400).json({ error: "Keep it under 300 characters" });
+  if (!categories.includes(category)) return res.status(400).json({ error: "Choose a category" });
+
+  posts.push({ username: req.user.username, category, body: text, tagProctor: tagProctor === true });
+  res.json({ message: "Posted anonymously" });
+});
+
+const messages = []; // { id, username, body }
+let nextMessageId = 1;
+const lastSentAt = {};
+
+app.get("/messages", requireUser, (req, res) => {
+  const after = Number(req.query.after) || 0;
+  const day = todayIST();
+
+  res.json(messages
+    .filter(m => m.id > after)
+    .slice(-100)
+    .map(m => ({
+      id: m.id,
+      name: nameFor(m.username, day),
+      body: m.body,
+      mine: m.username === req.user.username
+    })));
+});
+
+app.post("/message", requireUser, (req, res) => {
+  const username = req.user.username;
+  const text = typeof req.body.body === "string" ? req.body.body.trim() : "";
+
+  if (text === "") return res.status(400).json({ error: "Write a message first" });
+  if (text.length > 500) return res.status(400).json({ error: "Keep messages under 500 characters" });
+
+  const now = Date.now();
+  if (lastSentAt[username] && now - lastSentAt[username] < 1000) {
+    return res.status(429).json({ error: "Slow down a little" });
+  }
+  lastSentAt[username] = now;
+
+  messages.push({ id: nextMessageId++, username, body: text });
+  res.json({ message: "Sent" });
+});
+
+// ---------- Going home calendar ----------
+const trips = []; // { leave, ret }
+
+app.get("/trips", (req, res) => {
+  res.json(trips);
+});
+
+app.post("/trip", (req, res) => {
+  const { leave, ret } = req.body;
+
+  if (!leave || !ret) {
+    return res.status(400).json({ error: "Pick both a leave and a return date" });
+  }
+  if (ret < leave) {
+    return res.status(400).json({ error: "Return date cannot be before leave date" });
+  }
+
+  trips.push({ leave, ret });
+  res.json({ message: "Saved" });
+});
+
+// ---------- Food polls: students answer what they need, then submit once and the poll locks ----------
+const foodPolls = []; // { id, type, title, questions, forDate, closesAt, responses }
 let nextPollId = 1;
 
 const POLL_TYPES = {
-  meals: { title: "Meals", options: ["Breakfast", "Lunch", "Box (college)", "Dinner"], multi: true },
-  snack: { title: "Snack", options: ["Yes", "No"], multi: false },
-  vegnonveg: { title: "Veg / Non-veg", options: ["Veg", "Non-veg"], multi: false }
+  meals: {
+    title: "Meals",
+    questions: [
+      { key: "breakfast", label: "Breakfast", options: ["Eating", "Skip"] },
+      { key: "lunch", label: "Lunch", options: ["Eating", "Skip"] },
+      { key: "box", label: "Box (college)", options: ["Eating", "Skip"] },
+      { key: "dinner", label: "Dinner", options: ["Eating", "Skip"] }
+    ]
+  },
+  snack: {
+    title: "Snack",
+    questions: [{ key: "snack", label: "Snack tomorrow night?", options: ["Yes", "No"] }]
+  },
+  vegnonveg: {
+    title: "Veg / Non-veg",
+    questions: [{ key: "vegnonveg", label: "Wednesday dinner: veg or non-veg?", options: ["Veg", "Non-veg"] }]
+  }
 };
 const TYPE_ORDER = { meals: 0, snack: 1, vegnonveg: 2 };
 
@@ -400,7 +381,6 @@ function closeTimeFromIST(local) {
   return Number.isNaN(t) ? null : t;
 }
 
-// Everyone: upcoming polls, grouped by date, with counts and this student's choices
 app.get("/food", requireUser, (req, res) => {
   const today = todayIST();
   const me = req.user.username;
@@ -410,48 +390,68 @@ app.get("/food", requireUser, (req, res) => {
     .filter(p => p.forDate >= today)
     .sort((a, b) => a.forDate.localeCompare(b.forDate) || TYPE_ORDER[a.type] - TYPE_ORDER[b.type])
     .map(p => {
-      const counts = {};
-      p.options.forEach(o => { counts[o] = 0; });
-      Object.values(p.votes).forEach(choices => {
-        choices.forEach(c => { if (counts[c] !== undefined) counts[c] += 1; });
-      });
+      const responses = Object.values(p.responses);
+      const submittedCount = responses.length;
+      const mine = p.responses[me];
+
       return {
         id: p.id,
         title: p.title,
-        options: p.options,
-        multi: p.multi,
         forDate: p.forDate,
         closesAt: p.closesAt,
         open: now < p.closesAt,
-        counts,
-        mine: p.votes[me] || []
+        submitted: Boolean(mine),
+        questions: p.questions.map(q => {
+          const counts = {};
+          q.options.forEach(o => { counts[o] = 0; });
+          responses.forEach(r => {
+            const choice = r.answers[q.key];
+            if (choice !== undefined) counts[choice] += 1;
+          });
+          const answered = Object.values(counts).reduce((a, b) => a + b, 0);
+
+          return {
+            key: q.key,
+            label: q.label,
+            options: q.options,
+            counts,
+            noAnswer: submittedCount - answered,
+            mine: mine ? (mine.answers[q.key] || null) : null
+          };
+        })
       };
     });
 
   res.json({ polls, isProctor: isProctor(req) });
 });
 
-// Students: save their choices. Meals can have several; Snack and Veg/Non-veg have one.
-app.post("/food/vote", requireUser, (req, res) => {
+app.post("/food/submit", requireUser, (req, res) => {
   const poll = foodPolls.find(p => p.id === Number(req.body.pollId));
   if (!poll) return res.status(400).json({ error: "This poll no longer exists" });
   if (Date.now() >= poll.closesAt) return res.status(403).json({ error: "This poll is closed" });
 
-  if (!Array.isArray(req.body.choices)) return res.status(400).json({ error: "Choose an option" });
-  const choices = [...new Set(req.body.choices)];
+  const me = req.user.username;
+  if (poll.responses[me]) return res.status(409).json({ error: "You have already submitted this poll" });
 
-  if (!choices.every(c => poll.options.includes(c))) {
-    return res.status(400).json({ error: "Choose from the listed options" });
-  }
-  if (!poll.multi && choices.length !== 1) {
-    return res.status(400).json({ error: "Choose exactly one option" });
+  const given = req.body.answers;
+  if (!given || typeof given !== "object" || Array.isArray(given)) {
+    return res.status(400).json({ error: "Answers are missing" });
   }
 
-  poll.votes[req.user.username] = choices;
-  res.json({ message: "Saved" });
+  const answers = {};
+  for (const q of poll.questions) {
+    const choice = given[q.key];
+    if (choice === undefined || choice === null || choice === "") continue;
+    if (!q.options.includes(choice)) {
+      return res.status(400).json({ error: "Choose from the listed options for " + q.label });
+    }
+    answers[q.key] = choice;
+  }
+
+  poll.responses[me] = { answers, submittedAt: Date.now() };
+  res.json({ message: "Submitted" });
 });
 
-// Proctor: add a Meals, Snack or Veg/Non-veg poll for one date
 app.post("/food/poll", requireUser, (req, res) => {
   if (!isProctor(req)) return res.status(403).json({ error: "Proctors only" });
 
@@ -472,16 +472,14 @@ app.post("/food/poll", requireUser, (req, res) => {
     id: nextPollId++,
     type,
     title: t.title,
-    options: t.options,
-    multi: t.multi,
+    questions: t.questions,
     forDate,
     closesAt,
-    votes: {}
+    responses: {}
   });
   res.json({ message: t.title + " poll added" });
 });
 
-// Proctor: remove a poll added by mistake
 app.post("/food/delete", requireUser, (req, res) => {
   if (!isProctor(req)) return res.status(403).json({ error: "Proctors only" });
 
@@ -490,8 +488,8 @@ app.post("/food/delete", requireUser, (req, res) => {
 
   foodPolls.splice(index, 1);
   res.json({ message: "Poll removed" });
-}); 
+});
+
 app.listen(PORT, () => {
   console.log(`Hostel Hub running at http://localhost:${PORT}`);
 });
-
