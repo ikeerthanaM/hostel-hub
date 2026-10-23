@@ -1,25 +1,30 @@
+const dateEl = document.getElementById("attendance-date");
 const stateEl = document.getElementById("attendance-state");
-const attendanceBtn = document.getElementById("attendance-btn");
+const btn = document.getElementById("attendance-btn");
 const statusEl = document.getElementById("attendance-status");
 
+// Shows either the confirmation or the button, never both
 async function loadAttendance() {
   const response = await fetch("/attendance/today");
   if (!response.ok) {
-    stateEl.textContent = "Please log in again";
-    attendanceBtn.disabled = true;
+    window.location.href = "index.html";
     return;
   }
 
   const data = await response.json();
-  stateEl.textContent = data.marked
-    ? "Marked present for " + formatDate(data.date)
-    : "Not marked yet for " + formatDate(data.date);
-  attendanceBtn.textContent = data.marked ? "Already marked" : "Mark attendance";
-  attendanceBtn.disabled = data.marked;
+  dateEl.textContent = formatDate(data.date);
+
+  if (data.marked) {
+    stateEl.textContent = "✓ You are marked present";
+    btn.hidden = true;
+  } else {
+    stateEl.textContent = "Not marked yet";
+    btn.hidden = false;
+  }
 }
 
-attendanceBtn.addEventListener("click", async function () {
-  attendanceBtn.disabled = true;
+btn.addEventListener("click", async function () {
+  btn.disabled = true;
   statusEl.textContent = "Getting your location...";
 
   try {
@@ -36,14 +41,15 @@ attendanceBtn.addEventListener("click", async function () {
       })
     });
     const data = await response.json();
-    statusEl.textContent = response.ok ? data.message : data.error;
+
+    // On success, clear the message: the confirmation already shows
+    statusEl.textContent = response.ok ? "" : data.error;
   } catch (err) {
     statusEl.textContent = err.message;
   } finally {
-    loadAttendance();
+    btn.disabled = false;
+    await loadAttendance();
   }
 });
 
-requireLogin().then(function (me) {
-  if (me) loadAttendance();
-});
+loadAttendance();

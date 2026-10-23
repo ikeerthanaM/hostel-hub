@@ -587,3 +587,30 @@ body.has-nav.chat-page {
   background: var(--border);
   color: var(--text);
 }
+
+/* Respect the hidden attribute everywhere */
+[hidden] { display: none !important; }
+
+/* The top bar already shows the page name, so hide the duplicate heading */
+body.has-nav header h1 { display: none; }
+
+/* Less empty space under the top bar */
+body.has-nav { padding-top: 68px; }
+
+/* Attendance card: centered, with the button full width */
+.attendance-card {
+  text-align: center;
+  padding: 28px 16px;
+}
+
+.attendance-card h2 {
+  font-size: 1.2rem;
+  margin: 8px 0 16px;
+}
+
+.attendance-card button {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  margin: 0 auto;
+}
