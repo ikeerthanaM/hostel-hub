@@ -15,8 +15,8 @@ function todayIST() {
 
 // ---------- Hostel location (set on Render, or the fallback here) ----------
 const HOSTEL = {
-  lat: Number(process.env.HOSTEL_LAT) || 12.9716,
-  lng: Number(process.env.HOSTEL_LNG) || 77.5946,
+  lat: Number(process.env.HOSTEL_LAT) || 12.974490,
+  lng: Number(process.env.HOSTEL_LNG) || 77.586315,
   radiusM: Number(process.env.HOSTEL_RADIUS_M) || 150
 };
 
