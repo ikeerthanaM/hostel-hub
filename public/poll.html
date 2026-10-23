@@ -3,27 +3,42 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Snack Poll · Hostel Hub</title>
+  <title>Food · Hostel Hub</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header>
-    <h1>Food polls</h1>
-    <p>Vote before the cut-off so the cook knows the numbers.</p>
+    <h1>Food</h1>
   </header>
 
   <main>
-    <section class="card">
-      <h2 id="question">Loading...</h2>
-      <button id="yes-btn">Yes</button>
-      <button id="no-btn">No</button>
-      <p id="results">Results will show here</p>
-    </section>
-  </main>
+    <section id="proctor-panel" class="card" hidden>
+      <h2>Add food polls</h2>
 
-  <footer>
-    <p><a href="index.html">Back to join page</a></p>
-  </footer>
+      <label for="p-title">Title</label>
+      <input id="p-title" type="text" maxlength="60" placeholder="e.g. Snack or Wednesday dinner">
+
+      <label for="p-type">Type</label>
+      <select id="p-type">
+        <option value="meal">Meal: Eating or Skip</option>
+        <option value="snack">Snack: Yes or No</option>
+        <option value="vegnonveg">Veg or Non-veg</option>
+      </select>
+
+      <label for="p-date">Food is for</label>
+      <input id="p-date" type="date">
+
+      <label for="p-close">Closes at (Indian time)</label>
+      <input id="p-close" type="datetime-local">
+
+      <button id="p-add">Add this poll</button>
+      <button id="p-meals" class="secondary">Add breakfast, lunch, box and dinner</button>
+      <p id="p-status" class="meta"></p>
+    </section>
+
+    <p id="food-status" class="meta"></p>
+    <div id="polls"></div>
+  </main>
 
   <script src="common.js"></script>
   <script src="poll.js"></script>

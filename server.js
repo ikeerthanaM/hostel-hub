@@ -411,7 +411,132 @@ app.get("/export/movements.csv", (req, res) => {
   res.setHeader("Content-Type", "text/csv");
   res.setHeader("Content-Disposition", 'attachment; filename="movements.csv"');
   res.send(lines.join("\n"));
+});
+// ---------- Food polls: the proctor creates them, each with its own date and deadline ----------
+const foodPolls = []; // { id, title, type, options, forDate, closesAt, votes }
+let nextPollId = 1;
+
+const POLL_TYPES = {
+  meal: { options: ["Eating", "Skip"] },
+  snack: { options: ["Yes", "No"] },
+  vegnonveg: { options: ["Veg", "Non-veg"] }
+};
+const MEAL_TITLES = ["Breakfast", "Lunch", "Box (for college)", "Dinner"];
+
+// Adds days to a YYYY-MM-DD date
+function addDays(dateStr, n) {
+  const d = new Date(dateStr + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+function isDateText(s) {
+  return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
+}
+
+// Turns "2026-10-21T21:00" (Indian time) into milliseconds. Returns null if invalid.
+function closeTimeFromIST(local) {
+  if (typeof local !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(local)) return null;
+  const t = new Date(local + "+05:30").getTime();
+  return Number.isNaN(t) ? null : t;
+}
+
+function addPoll(title, type, forDate, closesAt) {
+  foodPolls.push({
+    id: nextPollId++,
+    title,
+    type,
+    options: POLL_TYPES[type].options,
+    forDate,
+    closesAt,
+    votes: {} // username -> choice
+  });
+}
+
+// Students and proctors: every poll for today or later, with counts and this student's choice
+app.get("/food", requireUser, (req, res) => {
+  const today = todayIST();
+  const me = req.user.username;
+  const now = Date.now();
+
+  const polls = foodPolls
+    .filter(p => p.forDate >= today)
+    .sort((a, b) => a.forDate.localeCompare(b.forDate) || a.id - b.id)
+    .map(p => {
+      const counts = {};
+      p.options.forEach(o => { counts[o] = 0; });
+      Object.values(p.votes).forEach(c => { if (counts[c] !== undefined) counts[c] += 1; });
+      return {
+        id: p.id,
+        title: p.title,
+        options: p.options,
+        forDate: p.forDate,
+        closesAt: p.closesAt,
+        open: now < p.closesAt,
+        counts,
+        mine: p.votes[me] || null
+      };
+    });
+
+  res.json({ polls, isProctor: isProctor(req) });
+});
+
+app.post("/food/vote", requireUser, (req, res) => {
+  const poll = foodPolls.find(p => p.id === Number(req.body.pollId));
+  if (!poll) return res.status(400).json({ error: "This poll no longer exists" });
+  if (Date.now() >= poll.closesAt) return res.status(403).json({ error: "This poll is closed" });
+  if (!poll.options.includes(req.body.choice)) return res.status(400).json({ error: "Choose one of the options" });
+
+  // One answer per student, changeable until the deadline
+  poll.votes[req.user.username] = req.body.choice;
+  res.json({ message: "Saved" });
+});
+
+// Proctor: add one poll
+app.post("/food/poll", requireUser, (req, res) => {
+  if (!isProctor(req)) return res.status(403).json({ error: "Proctors only" });
+
+  const title = String(req.body.title || "").trim();
+  const type = req.body.type;
+  const forDate = req.body.forDate;
+  const closesAt = closeTimeFromIST(req.body.closesLocal);
+
+  if (title === "" || title.length > 60) return res.status(400).json({ error: "Give the poll a title (up to 60 characters)" });
+  if (!POLL_TYPES[type]) return res.status(400).json({ error: "Choose a poll type" });
+  if (!isDateText(forDate)) return res.status(400).json({ error: "Pick the date the food is for" });
+  if (!closesAt) return res.status(400).json({ error: "Pick the closing date and time" });
+  if (closesAt <= Date.now()) return res.status(400).json({ error: "That closing time has already passed" });
+
+  addPoll(title, type, forDate, closesAt);
+  res.json({ message: "Poll added" });
+});
+
+// Proctor: add breakfast, lunch, box and dinner for one date, all with the same deadline
+app.post("/food/meals", requireUser, (req, res) => {
+  if (!isProctor(req)) return res.status(403).json({ error: "Proctors only" });
+
+  const forDate = req.body.forDate;
+  const closesAt = closeTimeFromIST(req.body.closesLocal);
+
+  if (!isDateText(forDate)) return res.status(400).json({ error: "Pick the date the food is for" });
+  if (!closesAt) return res.status(400).json({ error: "Pick the closing date and time" });
+  if (closesAt <= Date.now()) return res.status(400).json({ error: "That closing time has already passed" });
+
+  MEAL_TITLES.forEach(title => addPoll(title, "meal", forDate, closesAt));
+  res.json({ message: "Added breakfast, lunch, box and dinner" });
+});
+
+// Proctor: remove a poll added by mistake
+app.post("/food/delete", requireUser, (req, res) => {
+  if (!isProctor(req)) return res.status(403).json({ error: "Proctors only" });
+
+  const index = foodPolls.findIndex(p => p.id === Number(req.body.pollId));
+  if (index === -1) return res.status(400).json({ error: "Poll not found" });
+
+  foodPolls.splice(index, 1);
+  res.json({ message: "Poll removed" });
 }); 
 app.listen(PORT, () => {
   console.log(`Hostel Hub running at http://localhost:${PORT}`);
 });
+

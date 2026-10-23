@@ -614,3 +614,20 @@ body.has-nav { padding-top: 68px; }
   max-width: 320px;
   margin: 0 auto;
 }
+
+/* Secondary button and small delete button for the proctor */
+.card button.secondary {
+  background: var(--border);
+  color: var(--text);
+  margin-top: 8px;
+}
+
+.poll button.delete {
+  width: auto;
+  margin: 8px 0 0;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
