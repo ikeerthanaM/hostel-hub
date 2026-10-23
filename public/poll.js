@@ -114,9 +114,12 @@ async function loadPolls() {
 }
 
 async function vote(pollId, choices) {
-  statusEl.textContent = "Saving...";
   const { ok, data } = await postJson("/food/vote", { pollId, choices });
-  statusEl.textContent = ok ? "Saved" : data.error;
+  if (ok) {
+    flashConfirm(statusEl, "Voted");
+  } else {
+    statusEl.textContent = data.error;
+  }
   loadPolls();
 }
 

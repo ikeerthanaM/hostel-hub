@@ -4,9 +4,18 @@ const sendBtn = document.getElementById("send-btn");
 const statusEl = document.getElementById("status");
 const chatCard = document.querySelector(".chat-card");
 
+// Each sender keeps the same colour, like WhatsApp group names
+const NAME_COLOURS = ["#f28b82", "#81c995", "#fdd663", "#c58af9", "#78d9ec", "#ffb4a2"];
+
+function colourFor(name) {
+  let sum = 0;
+  for (const ch of name) sum += ch.charCodeAt(0);
+  return NAME_COLOURS[sum % NAME_COLOURS.length];
+}
+
 let lastId = 0;
 
-// Build one chat bubble. textContent keeps what was typed as plain text.
+// One chat bubble. Your messages are orange on the right. Others are blue-grey on the left.
 function addBubble(msg) {
   const row = document.createElement("div");
   row.className = msg.mine ? "bubble mine" : "bubble";
@@ -14,6 +23,7 @@ function addBubble(msg) {
   const who = document.createElement("p");
   who.className = "bubble-name";
   who.textContent = msg.name;
+  if (!msg.mine) who.style.color = colourFor(msg.name);
 
   const text = document.createElement("p");
   text.className = "bubble-text";
@@ -28,8 +38,7 @@ function scrollToBottom() {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
-// Make the chat fill only the space the phone actually shows, so the
-// keyboard never covers the composer.
+// Sizes the chat to the space the phone shows, so the keyboard never covers it
 function fitChatToScreen() {
   const vv = window.visualViewport;
   const visibleHeight = vv ? vv.height : window.innerHeight;
@@ -38,16 +47,12 @@ function fitChatToScreen() {
   scrollToBottom();
 }
 
-// Ask the server only for messages we haven't shown yet
 async function fetchNew() {
-  const response = await fetch("/messages?after=" + lastId, {
-    headers: { "x-visitor-id": getVisitorId() }
-  });
+  const response = await fetch("/messages?after=" + lastId);
+  if (!response.ok) return;
   const newMessages = await response.json();
   if (newMessages.length === 0) return;
 
-  // Only auto-scroll if the reader is already near the bottom,
-  // so people reading older messages aren't pulled away
   const nearBottom = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 80;
 
   newMessages.forEach(function (msg) {
@@ -58,7 +63,7 @@ async function fetchNew() {
   if (nearBottom) scrollToBottom();
 }
 
-// Keep the keyboard open: stop the Send button from taking focus away from the text box
+// Keep the keyboard open when Send is tapped
 sendBtn.addEventListener("pointerdown", e => e.preventDefault());
 sendBtn.addEventListener("mousedown", e => e.preventDefault());
 
@@ -72,7 +77,7 @@ sendBtn.addEventListener("click", async function () {
 
   const response = await fetch("/message", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-visitor-id": getVisitorId() },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ body: text })
   });
   const data = await response.json();
@@ -80,22 +85,25 @@ sendBtn.addEventListener("click", async function () {
   if (response.ok) {
     chatInput.value = "";
     statusEl.textContent = "";
-    chatInput.focus();          // keyboard stays up for the next message
+    chatInput.focus();
     await fetchNew();
-    scrollToBottom();           // show your own message right away
+    scrollToBottom();
   } else {
     statusEl.textContent = data.error;
     chatInput.focus();
   }
 });
 
-// When the keyboard opens or closes, resize the chat to fit the space left
 chatInput.addEventListener("focus", () => setTimeout(fitChatToScreen, 300));
 if (window.visualViewport) {
   window.visualViewport.addEventListener("resize", fitChatToScreen);
 }
 window.addEventListener("resize", fitChatToScreen);
 
-fitChatToScreen();
-fetchNew();
-setInterval(fetchNew, 4000);
+// Chat needs a login. Logged-out visitors go to the login page.
+requireLogin().then(function (me) {
+  if (!me) return;
+  fitChatToScreen();
+  fetchNew();
+  setInterval(fetchNew, 4000);
+});

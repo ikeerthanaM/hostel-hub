@@ -50,33 +50,11 @@ app.post("/polls/snack/vote", (req, res) => {
   res.json(snackPoll);
 });
 
-// Going-home trips: temporary, in memory, like the poll
-const trips = [];
-
-app.get("/trips", (req, res) => {
-  res.json(trips);
-});
-
-app.post("/trip", (req, res) => {
-  const { leave, ret } = req.body;
-
-  if (!leave || !ret) {
-    return res.status(400).json({ error: "Pick both a leave and a return date" });
-  }
-
-  // Dates look like 2026-10-25, so text comparison puts them in the right order
-  if (ret < leave) {
-    return res.status(400).json({ error: "Return date cannot be before leave date" });
-  }
-
-  trips.push({ leave, ret });
-  res.json({ message: "Saved" });
-});
-
-
-// Complaints board: temporary, in memory, like the other features
-// ---------- Anonymous names: one per browser per day ----------
+// ---------- Chat and complaints: names come from the logged-in account, never shown ----------
 const crypto = require("crypto");
+
+// Set a long random value as NAME_SECRET on Render. Locally, the fallback is used.
+const NAME_SECRET = process.env.NAME_SECRET || "local-test-secret";
 
 const adjectives = ["Calm", "Brave", "Quiet", "Gentle", "Bright", "Swift", "Kind", "Wise", "Lucky", "Proud",
   "Happy", "Shy", "Witty", "Bold", "Sunny", "Misty", "Clever", "Mellow", "Steady", "Jolly"];
@@ -84,101 +62,87 @@ const animals = ["Panda", "Otter", "Heron", "Fox", "Owl", "Tiger", "Koala", "Haw
   "Lynx", "Rabbit", "Badger", "Falcon", "Dolphin", "Penguin", "Camel", "Gecko", "Moose", "Wolf"];
 const categories = ["Food", "Clothes", "Washrooms", "Rules", "Other"];
 
-// Today's date in Indian time, like 2026-10-22
+// Today's date in Indian time, like 2026-10-23
 function todayIST() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 }
 
-// Same browser + same day = same name. A new day gives a new name.
-function nameFor(visitorId, day) {
-  const digest = crypto.createHash("sha256").update(visitorId + day).digest();
-  const a = adjectives[digest[0] % adjectives.length];
-  const b = animals[digest[1] % animals.length];
-  return a + " " + b;
+// Same account and same day = same name. Different accounts get different names.
+function nameFor(username, day) {
+  const digest = crypto.createHmac("sha256", NAME_SECRET).update(username + "|" + day).digest();
+  return adjectives[digest[0] % adjectives.length] + " " + animals[digest[1] % animals.length];
 }
 
-// ---------- Complaints ----------
-const posts = [];
+// ----- Complaints -----
+const posts = []; // { username, category, body, tagProctor }
 
-app.get("/posts", (req, res) => {
+app.get("/posts", requireUser, (req, res) => {
   const day = todayIST();
-  // Show the daily name, never the visitor ID
-  res.json(posts.slice().reverse().map(p => ({
-    name: nameFor(p.visitorId, day),
+  res.json(posts.map(p => ({
+    name: nameFor(p.username, day),
     category: p.category,
     body: p.body,
-    tagProctor: p.tagProctor
+    tagProctor: p.tagProctor,
+    mine: p.username === req.user.username
   })));
 });
 
-app.post("/post", (req, res) => {
-  const visitorId = req.get("x-visitor-id");
+app.post("/post", requireUser, (req, res) => {
   const { category, body, tagProctor } = req.body;
   const text = typeof body === "string" ? body.trim() : "";
 
-  if (!visitorId) {
-    return res.status(400).json({ error: "Missing visitor ID" });
-  }
-  if (text === "") {
-    return res.status(400).json({ error: "Write something first" });
-  }
-  if (text.length > 300) {
-    return res.status(400).json({ error: "Keep it under 300 characters" });
-  }
-  if (!categories.includes(category)) {
-    return res.status(400).json({ error: "Choose a category" });
-  }
+  if (text === "") return res.status(400).json({ error: "Write something first" });
+  if (text.length > 300) return res.status(400).json({ error: "Keep it under 300 characters" });
+  if (!categories.includes(category)) return res.status(400).json({ error: "Choose a category" });
 
-  posts.push({ visitorId, category, body: text, tagProctor: tagProctor === true });
+  posts.push({ username: req.user.username, category, body: text, tagProctor: tagProctor === true });
   res.json({ message: "Posted anonymously" });
 });
 
-// ---------- Chat ----------
-const messages = [];
+// ----- Chat -----
+const messages = []; // { id, username, body }
 let nextMessageId = 1;
-const lastSentAt = {}; // visitor ID -> time of last message, for the one-per-second limit
+const lastSentAt = {}; // username -> time of last message
 
-app.get("/messages", (req, res) => {
+app.get("/messages", requireUser, (req, res) => {
   const after = Number(req.query.after) || 0;
-  const visitorId = req.get("x-visitor-id");
   const day = todayIST();
 
-  const fresh = messages
+  res.json(messages
     .filter(m => m.id > after)
     .slice(-100)
     .map(m => ({
       id: m.id,
-      name: nameFor(m.visitorId, day),
+      name: nameFor(m.username, day),
       body: m.body,
-      mine: m.visitorId === visitorId
-    }));
-
-  res.json(fresh);
+      mine: m.username === req.user.username
+    })));
 });
 
-app.post("/message", (req, res) => {
-  const visitorId = req.get("x-visitor-id");
+app.post("/message", requireUser, (req, res) => {
+  const username = req.user.username;
   const text = typeof req.body.body === "string" ? req.body.body.trim() : "";
 
-  if (!visitorId) {
-    return res.status(400).json({ error: "Missing visitor ID" });
-  }
-  if (text === "") {
-    return res.status(400).json({ error: "Write a message first" });
-  }
-  if (text.length > 500) {
-    return res.status(400).json({ error: "Keep messages under 500 characters" });
-  }
+  if (text === "") return res.status(400).json({ error: "Write a message first" });
+  if (text.length > 500) return res.status(400).json({ error: "Keep messages under 500 characters" });
 
   const now = Date.now();
-  if (lastSentAt[visitorId] && now - lastSentAt[visitorId] < 1000) {
+  if (lastSentAt[username] && now - lastSentAt[username] < 1000) {
     return res.status(429).json({ error: "Slow down a little" });
   }
-  lastSentAt[visitorId] = now;
+  lastSentAt[username] = now;
 
-  messages.push({ id: nextMessageId++, visitorId, body: text });
+  messages.push({ id: nextMessageId++, username, body: text });
   res.json({ message: "Sent" });
 });
+
+
+
+
+
+
+// Same browser + same day = same name. A new day gives a new name.
+
 
 // ---------- Accounts: the real name is stored here and never shown in the app ----------
 // `crypto` is already loaded in the anonymous-names section above.

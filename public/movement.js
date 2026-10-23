@@ -6,15 +6,12 @@ const logEl = document.getElementById("movement-log");
 async function loadMovements() {
   const response = await fetch("/movements");
   if (!response.ok) {
-    stateEl.textContent = "Please log in again";
-    movementBtn.disabled = true;
+    window.location.href = "index.html";
     return;
   }
 
   const data = await response.json();
-  stateEl.textContent = data.state === "in"
-    ? "You are in the hostel"
-    : "You are out of the hostel";
+  stateEl.textContent = data.state === "in" ? "You are in the hostel" : "You are out of the hostel";
   movementBtn.textContent = data.state === "in" ? "Check out" : "Check in";
   movementBtn.disabled = false;
 
@@ -49,7 +46,12 @@ movementBtn.addEventListener("click", async function () {
       })
     });
     const data = await response.json();
-    statusEl.textContent = response.ok ? data.message : data.error;
+
+    if (response.ok) {
+      flashConfirm(statusEl, data.message);
+    } else {
+      statusEl.textContent = data.error;
+    }
   } catch (err) {
     statusEl.textContent = err.message;
   } finally {

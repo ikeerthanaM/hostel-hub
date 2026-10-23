@@ -1,71 +1,129 @@
+const messagesEl = document.getElementById("messages");
 const categoryInput = document.getElementById("category");
-const messageInput = document.getElementById("message");
 const tagInput = document.getElementById("tag");
+const messageInput = document.getElementById("message");
 const postBtn = document.getElementById("post-btn");
 const statusEl = document.getElementById("status");
-const postsEl = document.getElementById("posts");
+const chatCard = document.querySelector(".chat-card");
 
-// Build one post card. textContent keeps whatever was typed as plain text.
-function makePostCard(post) {
-  const card = document.createElement("div");
-  card.className = "card post";
+const NAME_COLOURS = ["#f28b82", "#81c995", "#fdd663", "#c58af9", "#78d9ec", "#ffb4a2"];
 
-  const meta = document.createElement("p");
-  meta.className = "post-meta";
-  meta.textContent = post.name + " · " + post.category;
-  if (post.tagProctor) {
-    const tag = document.createElement("span");
-    tag.className = "badge";
-    tag.textContent = "Proctor tagged";
-    meta.appendChild(tag);
-  }
-
-  const body = document.createElement("p");
-  body.className = "post-body";
-  body.textContent = post.body;
-
-  card.appendChild(meta);
-  card.appendChild(body);
-  return card;
+function colourFor(name) {
+  let sum = 0;
+  for (const ch of name) sum += ch.charCodeAt(0);
+  return NAME_COLOURS[sum % NAME_COLOURS.length];
 }
 
+let lastSnapshot = "";
+let firstLoad = true;
+
+// One complaint as a bubble. textContent keeps what was typed as plain text.
+function addPost(post) {
+  const row = document.createElement("div");
+  row.className = post.mine ? "bubble mine" : "bubble";
+
+  const who = document.createElement("p");
+  who.className = "bubble-name";
+  who.textContent = post.name + " · " + post.category;
+  if (!post.mine) who.style.color = colourFor(post.name);
+
+  if (post.tagProctor) {
+    const badge = document.createElement("span");
+    badge.className = "badge";
+    badge.textContent = "Proctor tagged";
+    who.appendChild(badge);
+  }
+
+  const text = document.createElement("p");
+  text.className = "bubble-text";
+  text.textContent = post.body;
+
+  row.appendChild(who);
+  row.appendChild(text);
+  messagesEl.appendChild(row);
+}
+
+function scrollToBottom() {
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function fitChatToScreen() {
+  const vv = window.visualViewport;
+  const visibleHeight = vv ? vv.height : window.innerHeight;
+  const top = chatCard.getBoundingClientRect().top;
+  chatCard.style.height = (visibleHeight - top) + "px";
+  scrollToBottom();
+}
+
+// Reloads only when something changed, and keeps the reader's place
 async function loadPosts() {
   const response = await fetch("/posts");
+  if (!response.ok) return;
   const posts = await response.json();
 
-  postsEl.innerHTML = "";
+  const snapshot = JSON.stringify(posts);
+  if (snapshot === lastSnapshot) return;
+  lastSnapshot = snapshot;
+
+  const nearBottom = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 80;
+
+  messagesEl.innerHTML = "";
   if (posts.length === 0) {
     const empty = document.createElement("p");
-    empty.className = "post-meta";
-    empty.textContent = "No posts yet";
-    postsEl.appendChild(empty);
-    return;
+    empty.className = "empty";
+    empty.textContent = "No complaints yet. Post one below.";
+    messagesEl.appendChild(empty);
   }
-  posts.forEach(function (post) {
-    postsEl.appendChild(makePostCard(post));
-  });
+  posts.forEach(addPost);
+
+  if (firstLoad || nearBottom) scrollToBottom();
+  firstLoad = false;
 }
 
+postBtn.addEventListener("pointerdown", e => e.preventDefault());
+postBtn.addEventListener("mousedown", e => e.preventDefault());
+
 postBtn.addEventListener("click", async function () {
+  const body = messageInput.value.trim();
+  if (body === "") {
+    statusEl.textContent = "Write something first";
+    messageInput.focus();
+    return;
+  }
+
   const response = await fetch("/post", {
     method: "POST",
-        headers: { "Content-Type": "application/json", "x-visitor-id": getVisitorId() },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       category: categoryInput.value,
-      body: messageInput.value,
+      body: body,
       tagProctor: tagInput.checked
     })
   });
   const data = await response.json();
 
   if (response.ok) {
-    statusEl.textContent = data.message;
     messageInput.value = "";
     tagInput.checked = false;
-    loadPosts();
+    statusEl.textContent = "";
+    messageInput.focus();
+    await loadPosts();
+    scrollToBottom();
   } else {
     statusEl.textContent = data.error;
+    messageInput.focus();
   }
 });
 
-loadPosts();
+window.addEventListener("resize", fitChatToScreen);
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", fitChatToScreen);
+}
+messageInput.addEventListener("focus", () => setTimeout(fitChatToScreen, 300));
+
+requireLogin().then(function (me) {
+  if (!me) return;
+  fitChatToScreen();
+  loadPosts();
+  setInterval(loadPosts, 5000);
+});

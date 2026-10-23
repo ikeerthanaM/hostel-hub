@@ -165,3 +165,18 @@ function buildNav() {
 }
 
 buildNav();
+
+// Shows a short confirmation that pops in, then clears itself after 2.5 seconds
+function flashConfirm(node, text) {
+  node.classList.remove("flash");
+  node.textContent = "✓ " + text;
+  void node.offsetWidth; // restarts the animation
+  node.classList.add("flash");
+
+  clearTimeout(node._hideTimer);
+  node._hideTimer = setTimeout(function () {
+    node.classList.remove("flash");
+    node.textContent = "";
+  }, 2500);
+}
+
