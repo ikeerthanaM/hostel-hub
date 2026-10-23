@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Complaints · Hostel Hub</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Complaints</h1>
+    <p>Post a problem anonymously. Your name is never shown.</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <label for="category">Category</label>
+      <select id="category">
+        <option value="Food">Food</option>
+        <option value="Clothes">Clothes</option>
+        <option value="Washrooms">Washrooms</option>
+        <option value="Rules">Rules</option>
+        <option value="Other">Other</option>
+      </select>
+
+      <label for="message">What happened?</label>
+      <textarea id="message" rows="4" maxlength="300" placeholder="Describe the problem..."></textarea>
+
+      <label class="check">
+        <input id="tag" type="checkbox">
+        Tag the proctor
+      </label>
+
+      <button id="post-btn">Post anonymously</button>
+      <p id="status"></p>
+    </section>
+
+    <section>
+      <h2>Recent posts</h2>
+      <div id="posts"></div>
+    </section>
+  </main>
+
+  <footer>
+    <p><a href="index.html">Back to join page</a></p>
+  </footer>
+  <script src="common.js"></script>
+
+  <script src="complaints.js"></script>
+</body>
+</html>

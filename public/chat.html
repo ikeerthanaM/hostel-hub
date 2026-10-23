@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat · Hostel Hub</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="chat-page">
+  <main>
+    <section class="card chat-card">
+      <div id="messages" class="messages"></div>
+
+      <div class="composer">
+        <textarea id="chat-input" rows="1" maxlength="500" placeholder="Message"></textarea>
+        <button id="send-btn">Send</button>
+      </div>
+      <p id="status"></p>
+    </section>
+  </main>
+
+  <script src="common.js"></script>
+  <script src="chat.js"></script>
+</body>
+</html>

@@ -3,36 +3,31 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title> Hostel Hub</title>
+  <title>Log in · Hostel Hub</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header>
     <h1>Hostel Hub</h1>
-    <p>Attendance, food, going-home plans and a safe voice for every student.</p>
+    <p>Log in to continue.</p>
   </header>
 
   <main>
-    <section id="join" class="card">
-      <h2>Join Hostel Hub</h2>
-
-      <label for="invite">Invite code</label>
-      <input id="invite" type="text" placeholder="HUB-4F7K">
-
+    <section class="card">
       <label for="username">Username</label>
-      <input id="username" type="text" placeholder="Choose a username">
+      <input id="username" type="text" autocomplete="username">
 
       <label for="pin">PIN</label>
-      <input id="pin" type="password" inputmode="numeric" placeholder="4 to 6 digits">
+      <input id="pin" type="password" inputmode="numeric" autocomplete="current-password">
 
-      <button id="join-btn">Request to join</button>
-      <p id="status">Status: not sent yet</p>
+      <button id="login-btn">Log in</button>
+      <p id="status"></p>
     </section>
+
+    <p><a href="register.html">New student? Register here</a></p>
   </main>
 
-  <footer>
-    <p>Hostel Hub · Working title</p>
-  </footer>
-  <script src="app.js"></script>
+  <script src="common.js"></script>
+  <script src="login.js"></script>
 </body>
 </html>

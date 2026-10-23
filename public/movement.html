@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Check out / in · Hostel Hub</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Going out and coming back</h1>
+    <p>Tap each time you leave the hostel and each time you return.</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2 id="movement-state">Checking...</h2>
+      <button id="movement-btn">Check out</button>
+      <p id="movement-status"></p>
+    </section>
+
+    <section class="card">
+      <h2>Recent</h2>
+      <ul id="movement-log" class="trip-list"></ul>
+    </section>
+  </main>
+
+  <footer>
+    <p>
+      <a href="attendance.html">Attendance</a> ·
+      <a href="chat.html">Chat</a> ·
+      <a href="complaints.html">Complaints</a>
+    </p>
+  </footer>
+
+  <script src="common.js"></script>
+  <script src="movement.js"></script>
+</body>
+</html>

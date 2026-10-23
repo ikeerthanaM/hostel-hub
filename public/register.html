@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register · Hostel Hub</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Join Hostel Hub</h1>
+    <p>Your real name is saved for attendance records only. It is never shown in the app.</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <label for="invite">Invite code</label>
+      <input id="invite" type="text" placeholder="HUB-4F7K">
+
+      <label for="real-name">Real name</label>
+      <input id="real-name" type="text" maxlength="50" placeholder="As in your college records">
+
+      <label for="username">Username</label>
+      <input id="username" type="text" maxlength="20" placeholder="Used to log in">
+
+      <label for="pin">PIN</label>
+      <input id="pin" type="password" inputmode="numeric" placeholder="4 to 6 digits">
+
+      <button id="register-btn">Create account</button>
+      <p id="status"></p>
+    </section>
+
+    <p><a href="index.html">Already joined? Log in</a></p>
+  </main>
+
+  <script src="common.js"></script>
+  <script src="register.js"></script>
+</body>
+</html>
+

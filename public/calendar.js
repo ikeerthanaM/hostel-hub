@@ -68,6 +68,14 @@ async function render() {
 
   grid.innerHTML = "";
 
+  // Weekday headings go in the same grid, so they always line up with the dates
+  ["S", "M", "T", "W", "T", "F", "S"].forEach(function (name) {
+    const head = document.createElement("div");
+    head.className = "wd";
+    head.textContent = name;
+    grid.appendChild(head);
+  });
+
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const startOffset = new Date(viewYear, viewMonth, 1).getDay();
 
