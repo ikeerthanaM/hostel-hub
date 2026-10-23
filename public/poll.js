@@ -1,15 +1,13 @@
 const pollsEl = document.getElementById("polls");
 const proctorPanel = document.getElementById("proctor-panel");
 const statusEl = document.getElementById("food-status");
-const pTitle = document.getElementById("p-title");
-const pType = document.getElementById("p-type");
 const pDate = document.getElementById("p-date");
 const pClose = document.getElementById("p-close");
 const pStatus = document.getElementById("p-status");
 
 let isProctorUser = false;
 
-// Small helper: creates an element with a class and text
+// Creates an element with an optional class and text
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -17,7 +15,7 @@ function el(tag, className, text) {
   return node;
 }
 
-// Deadline shown in Indian time, like "Thu 22 Oct, 9:00 PM"
+// Deadline in Indian time, like "Thu, 22 Oct, 9:00 PM"
 function formatClose(ms) {
   return new Date(ms).toLocaleString("en-IN", {
     timeZone: "Asia/Kolkata",
@@ -39,17 +37,34 @@ async function postJson(url, body) {
   return { ok: response.ok, data };
 }
 
-// One poll: title, deadline, option buttons, running counts
+// Tapping an option. Meals adds or removes that meal. Snack and Veg/Non-veg replace the choice.
+function toggle(poll, option) {
+  let next;
+  if (poll.multi) {
+    next = poll.mine.includes(option)
+      ? poll.mine.filter(o => o !== option)
+      : [...poll.mine, option];
+  } else {
+    next = [option];
+  }
+  vote(poll.id, next);
+}
+
 function makePoll(poll) {
   const box = el("div", "poll");
   box.appendChild(el("p", "poll-title", poll.title));
   box.appendChild(el("p", "meta", (poll.open ? "Closes " : "Closed ") + formatClose(poll.closesAt)));
 
+  if (poll.multi) {
+    box.appendChild(el("p", "meta", "Tick every meal you will eat. Tap again to untick."));
+  }
+
   const row = el("div", "poll-options");
   poll.options.forEach(function (option) {
-    const btn = el("button", "opt" + (poll.mine === option ? " chosen" : ""), option);
+    const chosen = poll.mine.includes(option);
+    const btn = el("button", "opt" + (chosen ? " chosen" : ""), option);
     btn.disabled = !poll.open;
-    btn.addEventListener("click", () => vote(poll.id, option));
+    btn.addEventListener("click", () => toggle(poll, option));
     row.appendChild(btn);
   });
   box.appendChild(row);
@@ -65,7 +80,7 @@ function makePoll(poll) {
   return box;
 }
 
-// Groups polls under a heading for the date their food is for
+// Groups polls under one heading per date
 function render(polls) {
   pollsEl.innerHTML = "";
   if (polls.length === 0) {
@@ -98,9 +113,9 @@ async function loadPolls() {
   render(data.polls);
 }
 
-async function vote(pollId, choice) {
+async function vote(pollId, choices) {
   statusEl.textContent = "Saving...";
-  const { ok, data } = await postJson("/food/vote", { pollId, choice });
+  const { ok, data } = await postJson("/food/vote", { pollId, choices });
   statusEl.textContent = ok ? "Saved" : data.error;
   loadPolls();
 }
@@ -112,28 +127,20 @@ async function removePoll(pollId) {
   loadPolls();
 }
 
-document.getElementById("p-add").addEventListener("click", async function () {
+async function addPoll(type) {
+  pStatus.textContent = "Adding...";
   const { ok, data } = await postJson("/food/poll", {
-    title: pTitle.value,
-    type: pType.value,
-    forDate: pDate.value,
-    closesLocal: pClose.value
-  });
-  pStatus.textContent = ok ? data.message : data.error;
-  if (ok) {
-    pTitle.value = "";
-    loadPolls();
-  }
-});
-
-document.getElementById("p-meals").addEventListener("click", async function () {
-  const { ok, data } = await postJson("/food/meals", {
+    type,
     forDate: pDate.value,
     closesLocal: pClose.value
   });
   pStatus.textContent = ok ? data.message : data.error;
   if (ok) loadPolls();
-});
+}
+
+document.getElementById("p-meals").addEventListener("click", () => addPoll("meals"));
+document.getElementById("p-snack").addEventListener("click", () => addPoll("snack"));
+document.getElementById("p-veg").addEventListener("click", () => addPoll("vegnonveg"));
 
 loadPolls();
 setInterval(loadPolls, 30000);

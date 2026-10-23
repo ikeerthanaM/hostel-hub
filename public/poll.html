@@ -13,17 +13,7 @@
 
   <main>
     <section id="proctor-panel" class="card" hidden>
-      <h2>Add food polls</h2>
-
-      <label for="p-title">Title</label>
-      <input id="p-title" type="text" maxlength="60" placeholder="e.g. Snack or Wednesday dinner">
-
-      <label for="p-type">Type</label>
-      <select id="p-type">
-        <option value="meal">Meal: Eating or Skip</option>
-        <option value="snack">Snack: Yes or No</option>
-        <option value="vegnonveg">Veg or Non-veg</option>
-      </select>
+      <h2>Add a poll</h2>
 
       <label for="p-date">Food is for</label>
       <input id="p-date" type="date">
@@ -31,8 +21,9 @@
       <label for="p-close">Closes at (Indian time)</label>
       <input id="p-close" type="datetime-local">
 
-      <button id="p-add">Add this poll</button>
-      <button id="p-meals" class="secondary">Add breakfast, lunch, box and dinner</button>
+      <button id="p-meals">Add Meals poll</button>
+      <button id="p-snack" class="secondary">Add Snack poll</button>
+      <button id="p-veg" class="secondary">Add Veg / Non-veg poll</button>
       <p id="p-status" class="meta"></p>
     </section>
 

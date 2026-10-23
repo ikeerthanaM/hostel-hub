@@ -412,48 +412,31 @@ app.get("/export/movements.csv", (req, res) => {
   res.setHeader("Content-Disposition", 'attachment; filename="movements.csv"');
   res.send(lines.join("\n"));
 });
-// ---------- Food polls: the proctor creates them, each with its own date and deadline ----------
-const foodPolls = []; // { id, title, type, options, forDate, closesAt, votes }
+// -
+//fuck
+// ---------- Food polls: one Meals, one Snack, one Veg/Non-veg per date ----------
+const foodPolls = []; // { id, type, title, options, multi, forDate, closesAt, votes }
 let nextPollId = 1;
 
 const POLL_TYPES = {
-  meal: { options: ["Eating", "Skip"] },
-  snack: { options: ["Yes", "No"] },
-  vegnonveg: { options: ["Veg", "Non-veg"] }
+  meals: { title: "Meals", options: ["Breakfast", "Lunch", "Box (college)", "Dinner"], multi: true },
+  snack: { title: "Snack", options: ["Yes", "No"], multi: false },
+  vegnonveg: { title: "Veg / Non-veg", options: ["Veg", "Non-veg"], multi: false }
 };
-const MEAL_TITLES = ["Breakfast", "Lunch", "Box (for college)", "Dinner"];
-
-// Adds days to a YYYY-MM-DD date
-function addDays(dateStr, n) {
-  const d = new Date(dateStr + "T00:00:00Z");
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-}
+const TYPE_ORDER = { meals: 0, snack: 1, vegnonveg: 2 };
 
 function isDateText(s) {
   return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
 }
 
-// Turns "2026-10-21T21:00" (Indian time) into milliseconds. Returns null if invalid.
+// Turns "2026-10-23T21:00" (Indian time) into milliseconds. Returns null if invalid.
 function closeTimeFromIST(local) {
   if (typeof local !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(local)) return null;
   const t = new Date(local + "+05:30").getTime();
   return Number.isNaN(t) ? null : t;
 }
 
-function addPoll(title, type, forDate, closesAt) {
-  foodPolls.push({
-    id: nextPollId++,
-    title,
-    type,
-    options: POLL_TYPES[type].options,
-    forDate,
-    closesAt,
-    votes: {} // username -> choice
-  });
-}
-
-// Students and proctors: every poll for today or later, with counts and this student's choice
+// Everyone: upcoming polls, grouped by date, with counts and this student's choices
 app.get("/food", requireUser, (req, res) => {
   const today = todayIST();
   const me = req.user.username;
@@ -461,69 +444,77 @@ app.get("/food", requireUser, (req, res) => {
 
   const polls = foodPolls
     .filter(p => p.forDate >= today)
-    .sort((a, b) => a.forDate.localeCompare(b.forDate) || a.id - b.id)
+    .sort((a, b) => a.forDate.localeCompare(b.forDate) || TYPE_ORDER[a.type] - TYPE_ORDER[b.type])
     .map(p => {
       const counts = {};
       p.options.forEach(o => { counts[o] = 0; });
-      Object.values(p.votes).forEach(c => { if (counts[c] !== undefined) counts[c] += 1; });
+      Object.values(p.votes).forEach(choices => {
+        choices.forEach(c => { if (counts[c] !== undefined) counts[c] += 1; });
+      });
       return {
         id: p.id,
         title: p.title,
         options: p.options,
+        multi: p.multi,
         forDate: p.forDate,
         closesAt: p.closesAt,
         open: now < p.closesAt,
         counts,
-        mine: p.votes[me] || null
+        mine: p.votes[me] || []
       };
     });
 
   res.json({ polls, isProctor: isProctor(req) });
 });
 
+// Students: save their choices. Meals can have several; Snack and Veg/Non-veg have one.
 app.post("/food/vote", requireUser, (req, res) => {
   const poll = foodPolls.find(p => p.id === Number(req.body.pollId));
   if (!poll) return res.status(400).json({ error: "This poll no longer exists" });
   if (Date.now() >= poll.closesAt) return res.status(403).json({ error: "This poll is closed" });
-  if (!poll.options.includes(req.body.choice)) return res.status(400).json({ error: "Choose one of the options" });
 
-  // One answer per student, changeable until the deadline
-  poll.votes[req.user.username] = req.body.choice;
+  if (!Array.isArray(req.body.choices)) return res.status(400).json({ error: "Choose an option" });
+  const choices = [...new Set(req.body.choices)];
+
+  if (!choices.every(c => poll.options.includes(c))) {
+    return res.status(400).json({ error: "Choose from the listed options" });
+  }
+  if (!poll.multi && choices.length !== 1) {
+    return res.status(400).json({ error: "Choose exactly one option" });
+  }
+
+  poll.votes[req.user.username] = choices;
   res.json({ message: "Saved" });
 });
 
-// Proctor: add one poll
+// Proctor: add a Meals, Snack or Veg/Non-veg poll for one date
 app.post("/food/poll", requireUser, (req, res) => {
   if (!isProctor(req)) return res.status(403).json({ error: "Proctors only" });
 
-  const title = String(req.body.title || "").trim();
   const type = req.body.type;
   const forDate = req.body.forDate;
   const closesAt = closeTimeFromIST(req.body.closesLocal);
 
-  if (title === "" || title.length > 60) return res.status(400).json({ error: "Give the poll a title (up to 60 characters)" });
   if (!POLL_TYPES[type]) return res.status(400).json({ error: "Choose a poll type" });
   if (!isDateText(forDate)) return res.status(400).json({ error: "Pick the date the food is for" });
   if (!closesAt) return res.status(400).json({ error: "Pick the closing date and time" });
   if (closesAt <= Date.now()) return res.status(400).json({ error: "That closing time has already passed" });
+  if (foodPolls.some(p => p.type === type && p.forDate === forDate)) {
+    return res.status(409).json({ error: POLL_TYPES[type].title + " poll already exists for that date" });
+  }
 
-  addPoll(title, type, forDate, closesAt);
-  res.json({ message: "Poll added" });
-});
-
-// Proctor: add breakfast, lunch, box and dinner for one date, all with the same deadline
-app.post("/food/meals", requireUser, (req, res) => {
-  if (!isProctor(req)) return res.status(403).json({ error: "Proctors only" });
-
-  const forDate = req.body.forDate;
-  const closesAt = closeTimeFromIST(req.body.closesLocal);
-
-  if (!isDateText(forDate)) return res.status(400).json({ error: "Pick the date the food is for" });
-  if (!closesAt) return res.status(400).json({ error: "Pick the closing date and time" });
-  if (closesAt <= Date.now()) return res.status(400).json({ error: "That closing time has already passed" });
-
-  MEAL_TITLES.forEach(title => addPoll(title, "meal", forDate, closesAt));
-  res.json({ message: "Added breakfast, lunch, box and dinner" });
+  const t = POLL_TYPES[type];
+  foodPolls.push({
+    id: nextPollId++,
+    type,
+    title: t.title,
+    options: t.options,
+    multi: t.multi,
+    forDate,
+    closesAt,
+    votes: {}
+  });
+  res.json({ message: t.title + " poll added" });
 });
 
 // Proctor: remove a poll added by mistake
