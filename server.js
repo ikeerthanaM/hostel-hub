@@ -260,9 +260,11 @@ const categories = ["Food", "Clothes", "Washrooms", "Rules", "Other"];
 // Same account and same day = same name. Different accounts get different names.
 function nameFor(username, day) {
   const digest = crypto.createHmac("sha256", NAME_SECRET).update(username + "|" + day).digest();
-  return adjectives[digest[0] % adjectives.length] + " " + animals[digest[1] % animals.length];
+  const adjective = adjectives[digest[0] % adjectives.length];
+  const animal = animals[digest[1] % animals.length];
+  const number = String(digest.readUInt16BE(2) % 1000).padStart(3, "0");
+  return adjective + " " + animal + " " + number;
 }
-
 const posts = []; // { username, category, body, tagProctor }
 
 app.get("/posts", requireUser, (req, res) => {
@@ -324,25 +326,61 @@ app.post("/message", requireUser, (req, res) => {
   res.json({ message: "Sent" });
 });
 
-// ---------- Going home calendar ----------
-const trips = []; // { leave, ret }
+// ---------- Going home: each trip belongs to a student account ----------
+const trips = []; // { username, leave, ret }
 
+// Public: only the dates, so the calendar can show them
 app.get("/trips", (req, res) => {
-  res.json(trips);
+  res.json(trips.map(t => ({ leave: t.leave, ret: t.ret })));
 });
 
-app.post("/trip", (req, res) => {
+app.post("/trip", requireUser, (req, res) => {
   const { leave, ret } = req.body;
 
-  if (!leave || !ret) {
+  if (!isDateText(leave) || !isDateText(ret)) {
     return res.status(400).json({ error: "Pick both a leave and a return date" });
   }
   if (ret < leave) {
     return res.status(400).json({ error: "Return date cannot be before leave date" });
   }
 
-  trips.push({ leave, ret });
+  trips.push({ username: req.user.username, leave, ret });
   res.json({ message: "Saved" });
+});
+
+// ---------- Proctor check: problems for today, visible to the proctor only ----------
+function dateOf(ms) {
+  return new Date(ms).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+}
+
+app.get("/proctor/alerts", requireUser, (req, res) => {
+  if (!isProctor(req)) return res.status(403).json({ error: "Proctors only" });
+
+  const today = todayIST();
+  const problems = [];
+
+  users
+    .filter(u => u.status === "active" && !PROCTORS.includes(u.username))
+    .forEach(u => {
+      const notes = [];
+      const onTrip = trips.some(t => t.username === u.username && t.leave <= today && today <= t.ret);
+      const markedToday = dailyAttendance.some(a => a.username === u.username && a.date === today);
+      const mine = movements.filter(m => m.username === u.username);
+      const todayMoves = mine.filter(m => dateOf(m.at) === today);
+      const last = mine[mine.length - 1];
+
+      if (onTrip && markedToday) notes.push("Marked present, but has a trip planned for today");
+      if (onTrip && todayMoves.length > 0) notes.push("Checked in or out today, but has a trip planned");
+      if (!onTrip && !markedToday) notes.push("Attendance not marked today");
+      if (!onTrip && last && last.kind === "out") {
+        const when = new Date(last.at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+        notes.push("Checked out at " + when + " and has not checked back in");
+      }
+
+      if (notes.length > 0) problems.push({ name: u.realName, username: u.username, notes });
+    });
+
+  res.json({ date: today, problems });
 });
 
 // ---------- Food polls: students answer what they need, then submit once and the poll locks ----------

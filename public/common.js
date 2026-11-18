@@ -64,7 +64,8 @@ const NAV_SECTIONS = [
     items: [
       { label: "Attendance", href: "attendance.html" },
       { label: "Check out / in", href: "movement.html" },
-      { label: "Going home", href: "calendar.html" }
+            { label: "Going home", href: "calendar.html" },
+      { label: "Proctor check", href: "proctor.html" }
     ]
   },
   {

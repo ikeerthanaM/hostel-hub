@@ -6,46 +6,35 @@
   <title>Complaints · Hostel Hub</title>
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
-  <header>
-    <h1>Complaints</h1>
-    <p>Post a problem anonymously. Your name is never shown.</p>
-  </header>
-
+<body class="chat-page">
   <main>
-    <section class="card">
-      <label for="category">Category</label>
-      <select id="category">
-        <option value="Food">Food</option>
-        <option value="Clothes">Clothes</option>
-        <option value="Washrooms">Washrooms</option>
-        <option value="Rules">Rules</option>
-        <option value="Other">Other</option>
-      </select>
+    <section class="card chat-card">
+      <div id="messages" class="messages"></div>
 
-      <label for="message">What happened?</label>
-      <textarea id="message" rows="4" maxlength="300" placeholder="Describe the problem..."></textarea>
+      <div class="composer-tools">
+        <select id="category">
+          <option>Food</option>
+          <option>Clothes</option>
+          <option>Washrooms</option>
+          <option>Rules</option>
+          <option>Other</option>
+        </select>
+        <label class="tag-toggle">
+          <input id="tag" type="checkbox">
+          Tag proctor
+        </label>
+      </div>
 
-      <label class="check">
-        <input id="tag" type="checkbox">
-        Tag the proctor
-      </label>
-
-      <button id="post-btn">Post anonymously</button>
+      <div class="composer">
+        <textarea id="message" rows="1" maxlength="300" placeholder="Describe the problem"></textarea>
+        <button id="post-btn">Post</button>
+      </div>
       <p id="status"></p>
-    </section>
-
-    <section>
-      <h2>Recent posts</h2>
-      <div id="posts"></div>
     </section>
   </main>
 
-  <footer>
-    <p><a href="index.html">Back to join page</a></p>
-  </footer>
   <script src="common.js"></script>
-
   <script src="complaints.js"></script>
 </body>
 </html>
+

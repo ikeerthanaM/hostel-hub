@@ -14,8 +14,7 @@ function colourFor(name) {
   return NAME_COLOURS[sum % NAME_COLOURS.length];
 }
 
-let lastSnapshot = "";
-let firstLoad = true;
+let shownCount = -1;
 
 // One complaint as a bubble. textContent keeps what was typed as plain text.
 function addPost(post) {
@@ -55,17 +54,16 @@ function fitChatToScreen() {
   scrollToBottom();
 }
 
-// Reloads only when something changed, and keeps the reader's place
+// Loads all complaints and redraws them. Shows the reason if loading fails.
 async function loadPosts() {
   const response = await fetch("/posts");
-  if (!response.ok) return;
+  if (!response.ok) {
+    statusEl.textContent = "Could not load complaints (error " + response.status + "). Try logging in again.";
+    return;
+  }
   const posts = await response.json();
-
-  const snapshot = JSON.stringify(posts);
-  if (snapshot === lastSnapshot) return;
-  lastSnapshot = snapshot;
-
-  const nearBottom = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 80;
+  if (posts.length === shownCount) return;
+  shownCount = posts.length;
 
   messagesEl.innerHTML = "";
   if (posts.length === 0) {
@@ -75,9 +73,7 @@ async function loadPosts() {
     messagesEl.appendChild(empty);
   }
   posts.forEach(addPost);
-
-  if (firstLoad || nearBottom) scrollToBottom();
-  firstLoad = false;
+  scrollToBottom();
 }
 
 postBtn.addEventListener("pointerdown", e => e.preventDefault());
@@ -108,7 +104,6 @@ postBtn.addEventListener("click", async function () {
     statusEl.textContent = "";
     messageInput.focus();
     await loadPosts();
-    scrollToBottom();
   } else {
     statusEl.textContent = data.error;
     messageInput.focus();
