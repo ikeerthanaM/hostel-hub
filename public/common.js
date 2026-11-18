@@ -181,3 +181,11 @@ function flashConfirm(node, text) {
   }, 2500);
 }
 
+// Students don't see the proctor-only menu item
+fetch("/me")
+  .then(response => (response.ok ? response.json() : null))
+  .then(me => {
+    if (me && !me.isProctor) {
+      document.querySelectorAll('a[href="proctor.html"]').forEach(link => link.remove());
+    }
+  });	

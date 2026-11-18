@@ -154,7 +154,7 @@ app.post("/logout", (req, res) => {
 app.get("/me", (req, res) => {
   const user = currentUser(req);
   if (!user) return res.status(401).json({ error: "Not logged in" });
-  res.json({ username: user.username });
+    res.json({ username: user.username, isProctor: PROCTORS.includes(user.username) });
 });
 
 // ---------- Daily attendance: one mark per student per day, date only ----------
