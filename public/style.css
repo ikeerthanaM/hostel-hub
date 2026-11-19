@@ -660,3 +660,17 @@ body.has-nav { padding-top: 68px; }
 .bubble-name {
   font-weight: 600;
 }
+
+
+/* Links that look like buttons (spreadsheet downloads) */
+.button-link {
+  display: block;
+  text-align: center;
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+  text-decoration: none;
+}
